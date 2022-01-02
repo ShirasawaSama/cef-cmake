@@ -32,29 +32,3 @@ if(NOT MSVC AND NOT CMAKE_BUILD_TYPE)
     # Set the possible values of build type for cmake-gui
     set_property(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS "Debug" "Release" "MinSizeRel" "RelWithDebInfo")
 endif()
-
-if(MSVC AND CEF_USE_SANDBOX)
-    message(STATUS "CEF-CMake: Replacing /MD->/MT in C and CXX_FLAGS. Required by CEF sandbox.")
-    set(CompilerFlags
-        CMAKE_CXX_FLAGS
-        CMAKE_CXX_FLAGS_DEBUG
-        CMAKE_CXX_FLAGS_RELEASE
-        CMAKE_C_FLAGS
-        CMAKE_C_FLAGS_DEBUG
-        CMAKE_C_FLAGS_RELEASE
-    )
-    foreach(CompilerFlag ${CompilerFlags})
-        string(REPLACE "/MD" "/MT" ${CompilerFlag} "${${CompilerFlag}}")
-    endforeach()
-endif()
-
-if(CEF_CMAKE_OS_WINDOWS)
-    set(CEF_CMAKE_EXECUTABLE_RESOURCES
-        ${CMAKE_CURRENT_LIST_DIR}/../res/win/cef.exe.manifest
-        ${CMAKE_CURRENT_LIST_DIR}/../res/win/compatibility.manifest
-    )
-elseif(CEF_CMAKE_OS_MACOSX)
-    message(FATAL_ERROR "CEF-CMake: Executable resources for platform not supported yet")
-else()
-    set(CEF_CMAKE_EXECUTABLE_RESOURCES)
-endif()
