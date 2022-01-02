@@ -10,7 +10,7 @@ if(NOT CEF_CMAKE_INCLUDED)
 endif()
 
 if(NOT CEF_VERSION)
-    set(CEF_VERSION 96.0.18+gfe551e4+chromium-96.0.4664.110)
+    set(CEF_VERSION 75.1.4+g4210896+chromium-75.0.3770.100)
     message(STATUS "CEF-CMake: CEF_VERSION not specified. Defaulting to ${CEF_VERSION}")
 endif()
 
@@ -26,7 +26,6 @@ endif()
 if(MSVC)
     set(CEF_CMAKE_OUTPUT_DIR ${CEF_CMAKE_OUTPUT_DIR}/$<CONFIG>)
 endif()
-set_property(GLOBAL PROPERTY CEF_CMAKE_OUTPUT_DIR ${CEF_CMAKE_OUTPUT_DIR})
 
 if(CEF_CMAKE_OS_LINUX)
     if(CMAKE_SIZEOF_VOID_P EQUAL 8)
@@ -47,9 +46,7 @@ endif()
 set(cefArchiveURL https://cef-builds.spotifycdn.com/${cefName}.tar.bz2)
 # fix the url as the version may contain pluses
 string(REGEX REPLACE "\\+" "%2B" cefArchiveURL ${cefArchiveURL})
-
-set(cefDataPath ${CMAKE_CURRENT_BINARY_DIR}/${cefName} CACHE STRING "cefDataPath")
-set(cefArchive ${cefDataPath}.tar.bz2)
+set(cefArchive ${CMAKE_CURRENT_SOURCE_DIR}/${cefName}.tar.bz2)
 
 if(NOT EXISTS ${cefArchive})
     # download cef version
@@ -62,7 +59,7 @@ if(NOT EXISTS ${cefArchive})
     message(STATUS "CEF-CMake: Extracting ${cefArchive}")
     execute_process(
         COMMAND ${CMAKE_COMMAND} -E tar xzf ${cefArchive}
-        WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
     )
 endif()
 
@@ -71,10 +68,6 @@ set(wdir ${cefName}/libcef_dll)
 file(GLOB_RECURSE srcs "${wdir}/*.cc" "${wdir}/*.mm" "${wdir}/*.h" "${cefName}/include/*.h")
 
 add_library(cefdll_wrapper STATIC ${srcs})
-
-if(MSVC)
-    set_property(TARGET cefdll_wrapper PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
-endif()
 
 target_compile_definitions(cefdll_wrapper
     PRIVATE
@@ -92,30 +85,20 @@ target_include_directories(cefdll_wrapper
     INTERFACE include
 )
 
-function(add_windows_manifest target outFile)
-    get_property(CEF_CMAKE_OUTPUT_DIR GLOBAL PROPERTY CEF_CMAKE_OUTPUT_DIR)
-    add_custom_command(
-        TARGET ${target}
-        POST_BUILD
-        COMMAND "mt.exe" -nologo
-                -manifest \"${cefDataPath}/tests/cefsimple/cefsimple.exe.manifest\" \"${cefDataPath}/tests/cefsimple/compatibility.manifest\"
-                -outputresource:"${CEF_CMAKE_OUTPUT_DIR}/${outFile}"\;\#1
-        COMMENT "Adding manifest..."
-        )
-endfunction()
-
 add_custom_command(TARGET cefdll_wrapper POST_BUILD
     COMMENT "cefdll_wrapper: Copying CEF resources"
     COMMAND ${CMAKE_COMMAND} -E
         make_directory ${CEF_CMAKE_OUTPUT_DIR}
     COMMAND ${CMAKE_COMMAND} -E copy_directory
-        ${cefDataPath}/Resources/locales
+        ${CMAKE_CURRENT_SOURCE_DIR}/${cefName}/Resources/locales
         ${CEF_CMAKE_OUTPUT_DIR}/locales
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
-        ${cefDataPath}/Resources/chrome_100_percent.pak
-        ${cefDataPath}/Resources/chrome_200_percent.pak
-        ${cefDataPath}/Resources/icudtl.dat
-        ${cefDataPath}/Resources/resources.pak
+        ${CMAKE_CURRENT_SOURCE_DIR}/${cefName}/Resources/cef.pak
+        ${CMAKE_CURRENT_SOURCE_DIR}/${cefName}/Resources/cef_100_percent.pak
+        ${CMAKE_CURRENT_SOURCE_DIR}/${cefName}/Resources/cef_200_percent.pak
+        ${CMAKE_CURRENT_SOURCE_DIR}/${cefName}/Resources/cef_extensions.pak
+        ${CMAKE_CURRENT_SOURCE_DIR}/${cefName}/Resources/devtools_resources.pak
+        ${CMAKE_CURRENT_SOURCE_DIR}/${cefName}/Resources/icudtl.dat
         ${CEF_CMAKE_OUTPUT_DIR}
 )
 
@@ -123,8 +106,8 @@ if(CEF_CMAKE_OS_LINUX)
     target_link_libraries(cefdll_wrapper INTERFACE
         X11
         pthread
-        debug ${cefDataPath}/Debug/libcef.so
-        optimized ${cefDataPath}/Release/libcef.so
+        debug ${CMAKE_CURRENT_SOURCE_DIR}/${cefName}/Debug/libcef.so
+        optimized ${CMAKE_CURRENT_SOURCE_DIR}/${cefName}/Release/libcef.so
     )
 
     add_custom_command(TARGET cefdll_wrapper POST_BUILD
@@ -132,16 +115,16 @@ if(CEF_CMAKE_OS_LINUX)
         COMMAND ${CMAKE_COMMAND} -E
             make_directory ${CEF_CMAKE_OUTPUT_DIR}
         COMMAND ${CMAKE_COMMAND} -E copy_directory
-            ${cefDataPath}/$<CONFIG>/swiftshader
+            ${CMAKE_CURRENT_SOURCE_DIR}/${cefName}/$<CONFIG>/swiftshader
             ${CEF_CMAKE_OUTPUT_DIR}/swiftshader
         COMMAND ${CMAKE_COMMAND} -E copy_if_different
-            ${cefDataPath}/$<CONFIG>/chrome-sandbox
-            ${cefDataPath}/$<CONFIG>/libcef.so
-            ${cefDataPath}/$<CONFIG>/libEGL.so
-            ${cefDataPath}/$<CONFIG>/libGLESv2.so
-            ${cefDataPath}/$<CONFIG>/natives_blob.bin
-            ${cefDataPath}/$<CONFIG>/snapshot_blob.bin
-            ${cefDataPath}/$<CONFIG>/v8_context_snapshot.bin
+            ${CMAKE_CURRENT_SOURCE_DIR}/${cefName}/$<CONFIG>/chrome-sandbox
+            ${CMAKE_CURRENT_SOURCE_DIR}/${cefName}/$<CONFIG>/libcef.so
+            ${CMAKE_CURRENT_SOURCE_DIR}/${cefName}/$<CONFIG>/libEGL.so
+            ${CMAKE_CURRENT_SOURCE_DIR}/${cefName}/$<CONFIG>/libGLESv2.so
+            ${CMAKE_CURRENT_SOURCE_DIR}/${cefName}/$<CONFIG>/natives_blob.bin
+            ${CMAKE_CURRENT_SOURCE_DIR}/${cefName}/$<CONFIG>/snapshot_blob.bin
+            ${CMAKE_CURRENT_SOURCE_DIR}/${cefName}/$<CONFIG>/v8_context_snapshot.bin
             ${CEF_CMAKE_OUTPUT_DIR}
     )
 
@@ -153,6 +136,7 @@ if(CEF_CMAKE_OS_LINUX)
     endif()
 
 elseif(CEF_CMAKE_OS_WINDOWS)
+
     target_compile_definitions(cefdll_wrapper PUBLIC
         -DNOMINMAX
         -DWIN32_LEAN_AND_MEAN
@@ -165,8 +149,8 @@ elseif(CEF_CMAKE_OS_WINDOWS)
         rpcrt4.lib
         shlwapi.lib
         ws2_32.lib
-        debug ${cefDataPath}/Debug/libcef.lib
-        optimized ${cefDataPath}/Release/libcef.lib
+        debug ${CMAKE_CURRENT_SOURCE_DIR}/${cefName}/Debug/libcef.lib
+        optimized ${CMAKE_CURRENT_SOURCE_DIR}/${cefName}/Release/libcef.lib
     )
 
     add_custom_command(TARGET cefdll_wrapper POST_BUILD
@@ -174,19 +158,17 @@ elseif(CEF_CMAKE_OS_WINDOWS)
         COMMAND ${CMAKE_COMMAND} -E
             make_directory ${CEF_CMAKE_OUTPUT_DIR}
         COMMAND ${CMAKE_COMMAND} -E copy_directory
-            ${cefDataPath}/$<CONFIG>/swiftshader
+            ${CMAKE_CURRENT_SOURCE_DIR}/${cefName}/$<CONFIG>/swiftshader
             ${CEF_CMAKE_OUTPUT_DIR}/swiftshader
         COMMAND ${CMAKE_COMMAND} -E copy_if_different
-            ${cefDataPath}/$<CONFIG>/chrome_elf.dll
-            ${cefDataPath}/$<CONFIG>/d3dcompiler_47.dll
-            ${cefDataPath}/$<CONFIG>/libcef.dll
-            ${cefDataPath}/$<CONFIG>/libEGL.dll
-            ${cefDataPath}/$<CONFIG>/libGLESv2.dll
-            ${cefDataPath}/$<CONFIG>/snapshot_blob.bin
-            ${cefDataPath}/$<CONFIG>/v8_context_snapshot.bin
-            ${cefDataPath}/$<CONFIG>/vk_swiftshader.dll
-            ${cefDataPath}/$<CONFIG>/vk_swiftshader_icd.json
-            ${cefDataPath}/$<CONFIG>/vulkan-1.dll
+            ${CMAKE_CURRENT_SOURCE_DIR}/${cefName}/$<CONFIG>/chrome_elf.dll
+            ${CMAKE_CURRENT_SOURCE_DIR}/${cefName}/$<CONFIG>/d3dcompiler_47.dll
+            ${CMAKE_CURRENT_SOURCE_DIR}/${cefName}/$<CONFIG>/libcef.dll
+            ${CMAKE_CURRENT_SOURCE_DIR}/${cefName}/$<CONFIG>/libEGL.dll
+            ${CMAKE_CURRENT_SOURCE_DIR}/${cefName}/$<CONFIG>/libGLESv2.dll
+            ${CMAKE_CURRENT_SOURCE_DIR}/${cefName}/$<CONFIG>/natives_blob.bin
+            ${CMAKE_CURRENT_SOURCE_DIR}/${cefName}/$<CONFIG>/snapshot_blob.bin
+            ${CMAKE_CURRENT_SOURCE_DIR}/${cefName}/$<CONFIG>/v8_context_snapshot.bin
             ${CEF_CMAKE_OUTPUT_DIR}
     )
 
@@ -203,8 +185,8 @@ elseif(CEF_CMAKE_OS_WINDOWS)
             version.lib
             wbemuuid.lib
             winmm.lib
-            debug ${cefDataPath}/Debug/cef_sandbox.lib
-            optimized ${cefDataPath}/Release/cef_sandbox.lib
+            debug ${CMAKE_CURRENT_SOURCE_DIR}/${cefName}/Debug/cef_sandbox.lib
+            optimized ${CMAKE_CURRENT_SOURCE_DIR}/${cefName}/Release/cef_sandbox.lib
         )
     endif()
 
